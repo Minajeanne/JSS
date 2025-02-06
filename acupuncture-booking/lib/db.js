@@ -1,38 +1,23 @@
 import { Pool } from 'pg';
 
-const dbUser = process.env.POSTGRES_USER;
-const dbHost = process.env.POSTGRES_HOST;
-const dbName = process.env.POSTGRES_DB;
-const dbPassword = process.env.POSTGRES_PASSWORD;
-const dbPort = process.env.POSTGRES_PORT;
+const pool = new Pool({
+  user: process.env.POSTGRES_USER,
+  host: process.env.POSTGRES_HOST,
+  database: process.env.POSTGRES_DATABASE,
+  password: process.env.POSTGRES_PASSWORD,
+  port: parseInt(process.env.POSTGRES_PORT, 10),
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
-let pool;
+pool.on('connect', () => {
+  console.log('Connected to PostgreSQL database');
+});
 
-try {
-  pool = new Pool({
-    user: dbUser,
-    host: dbHost,
-    database: dbName,
-    password: dbPassword,
-    port: parseInt(dbPort, 10),
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-  });
-
-  pool.connect()
-    .then(() => {
-      console.log('Connected to PostgreSQL database');
-    })
-    .catch((err) => {
-      console.error('Error connecting to PostgreSQL database:', err);
-    });
-
-} catch (error) {
-  console.error('Error creating PostgreSQL connection pool:', error);
-  // Handle the error appropriately, e.g., log it, display an error message, or exit the application
-  process.exit(1); // Terminate the application if the database connection is critical
-}
-
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
 export default pool;

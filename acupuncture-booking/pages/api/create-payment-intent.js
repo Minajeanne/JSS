@@ -1,9 +1,48 @@
-import { useState, useEffect } from 'react';
+import Stripe from 'stripe';
+import pool from '../../lib/db';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export default async function handler(req, res) {
+  if (req.method === 'POST') {
+    const { name, email, selectedTime } = req.body;
+
+    try {
+      // Create a PaymentIntent with the order amount and currency
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: 5000, // Example amount in cents
+        currency: 'usd',
+        payment_method_types: ['card'],
+        metadata: { name, email, selectedTime },
+      });
+
+      // Save the payment intent details to the database
+      const client = await pool.connect();
+      try {
+        await client.query('INSERT INTO payments(name, email, selected_time, payment_intent_id) VALUES($1, $2, $3, $4)', [name, email, selectedTime, paymentIntent.id]);
+      } finally {
+        client.release();
+      }
+
+      res.status(200).json({ clientSecret: paymentIntent.client_secret });
+    } catch (error) {
+      console.error('Error creating payment intent:', error);
+      res.status(500).json({ error: error.message });
+    }
+  } else {
+    res.setHeader('Allow', ['POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
+}
+
+
+
+/*import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { loadStripe } from '@stripe/stripe-js';
-import pool from '../../../lib/db';
+//import pool from '../../../lib/db';
 import moment from 'moment';
-import styles from '../styles/Home.module.css'; //
+//import styles from '../styles/Home.module.css'; //path?
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);  //Secure Key
 
 export default function Home() {
@@ -179,3 +218,4 @@ export default function Home() {
     </div>
   );
 }
+*/
