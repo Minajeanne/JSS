@@ -1,10 +1,10 @@
-import { React, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { loadStripe } from '@stripe/stripe-js';
 import moment from 'moment';
 import styles from '/styles/Home.module.css'; // Create this!
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);  //Secure Key
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);  // Secure Key
 
 export default function Home() {
   const [name, setName] = useState('');
@@ -35,129 +35,83 @@ export default function Home() {
 
   // Populate available times on component mount
   useEffect(() => {
-      setAvailableTimes(availableAppointmentTimes);
+    setAvailableTimes(availableAppointmentTimes);
   }, []);
-
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
-    setPaymentStatus(null); // Reset status
 
-    if (!selectedTime) {
-      alert('Please select an appointment time.');
-      setLoading(false);
-      return;
-    }
+    // Create a PaymentIntent on the server
+    const res = await fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, email, selectedTime }),
+    });
 
-    try {
-      // 1. Create a Payment Intent on the server
-      const response = await fetch('/api/create-payment-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: 5000 }), // $50.00 (in cents)
-      });
+    const { clientSecret } = await res.json();
+    setClientSecret(clientSecret);
 
-      const { clientSecret } = await response.json();
-      setClientSecret(clientSecret);
-
-      // 2. Use Stripe.js to confirm the payment
-      const stripe = await stripePromise;
-
-      const { error, paymentIntent } = await stripe.confirmPayment({
-        elements: stripe.elements({clientSecret: clientSecret}), // Important: Pass the clientSecret
-        confirmParams: {
-          return_url: `${window.location.origin}/?payment_status=success`, // Redirect after payment
+    // Confirm the payment with Stripe
+    const stripe = await stripePromise;
+    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: elements.getElement(CardElement),
+        billing_details: {
+          name,
+          email,
         },
-      });
+      },
+    });
 
-      if (error) {
-        console.error(error);
-        setPaymentStatus('error');
-        alert(`Payment failed: ${error.message}`);
-      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        console.log('Payment succeeded!');
-        setPaymentStatus('success');
-
-        //Simulate appointment booking
-        alert("Booking Confirmed!");
-        //Potentially send confirmation email
-
-        //Remove the booked appointment time from available times
-        setAvailableTimes(prevTimes => prevTimes.filter(time => time !== selectedTime));
-      }
-    } catch (error) {
-      console.error("Payment Error:", error);
+    if (error) {
       setPaymentStatus('error');
-      alert("An error occurred during payment processing.");
-    } finally {
-      setLoading(false);
+    } else if (paymentIntent.status === 'succeeded') {
+      setPaymentStatus('success');
     }
-  };
 
-  const handleTimeChange = (event) => {
-    setSelectedTime(event.target.value);
+    setLoading(false);
   };
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const status = urlParams.get('payment_status');
-    if (status === 'success') {
-      setPaymentStatus('success');  //update payment status, but do not remove time again.
-    }
-  }, []);
 
   return (
     <div className={styles.container}>
       <Head>
         <title>Acupuncture Booking</title>
+        <meta name="description" content="Book your acupuncture appointment" />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"></link>
       </Head>
 
       <main className={styles.main}>
-        <h1 className={styles.title}>Book Your Acupuncture Session</h1>
-
-        {paymentStatus === 'success' && (
-          <div className={styles.success}>
-            <p>Payment successful!  Your appointment is confirmed. You will receive an email shortly.</p>
-          </div>
-        )}
-
-        {paymentStatus === 'error' && (
-          <div className={styles.error}>
-            <p>Payment failed. Please try again.</p>
-          </div>
-        )}
+        <h1 className={styles.title}>Book Your Appointment</h1>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          <div className="form-group">
-            <label htmlFor="name">Name:</label>
+          <label>
+            Name:
             <input
               type="text"
-              id="name"
-              className="form-control"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
             />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="email">Email:</label>
+          </label>
+          <label>
+            Email:
             <input
               type="email"
-              id="email"
-              className="form-control"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="time">Select Appointment Time:</label>
-            <select id="time" className="form-control" onChange={handleTimeChange} value={selectedTime || ''} required>
+          </label>
+          <label>
+            Select Time:
+            <select
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
+              required
+            >
               <option value="" disabled>Select a time</option>
               {availableTimes.map((time) => (
                 <option key={time} value={time}>
@@ -165,17 +119,15 @@ export default function Home() {
                 </option>
               ))}
             </select>
-          </div>
-
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Processing...' : 'Book & Pay'}
+          </label>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Processing...' : 'Book Appointment'}
           </button>
         </form>
-      </main>
 
-      <footer className={styles.footer}>
-        Powered by Next.js and Stripe
-      </footer>
+        {paymentStatus === 'success' && <p>Payment successful!</p>}
+        {paymentStatus === 'error' && <p>Payment failed. Please try again.</p>}
+      </main>
     </div>
   );
 }
