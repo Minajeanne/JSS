@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "nextjs: debug server-side",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "npm run dev"  // Or "yarn dev"
+      },
+      {
+        "name": "nextjs: debug client-side",
+        "type": "chrome",
+        "request": "launch",
+        "url": "http://localhost:3000", // Adjust if your port is different
+        "webRoot": "${workspaceFolder}"
+      }
+    ]
+  }

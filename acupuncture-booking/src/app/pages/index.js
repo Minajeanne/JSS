@@ -1,10 +1,8 @@
-import Image from "next/image";
-
-import { useState, useEffect } from 'react';
+import { React, useState, useEffect } from 'react';
 import Head from 'next/head';
 import { loadStripe } from '@stripe/stripe-js';
 import moment from 'moment';
-import styles from '../styles/Home.module.css'; // Create this! 
+import styles from '/styles/Home.module.css'; // Create this!
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);  //Secure Key
 
